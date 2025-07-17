@@ -8,6 +8,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [selectedChannel, setSelectedChannel] = useState('general')
   const [selectedDM, setSelectedDM] = useState('')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     const unsubscribe = blink.auth.onAuthStateChanged((state) => {
@@ -77,13 +78,15 @@ function App() {
   }
 
   return (
-    <div className="h-screen flex bg-white">
-      <Sidebar
-        selectedChannel={selectedChannel}
-        onChannelSelect={handleChannelSelect}
-        selectedDM={selectedDM}
-        onDMSelect={handleDMSelect}
-      />
+    <div className="h-screen flex bg-white overflow-hidden">
+      <div className="hidden md:block">
+        <Sidebar
+          selectedChannel={selectedChannel}
+          onChannelSelect={handleChannelSelect}
+          selectedDM={selectedDM}
+          onDMSelect={handleDMSelect}
+        />
+      </div>
       <ChatArea
         channelId={selectedChannel}
         dmId={selectedDM}
