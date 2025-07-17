@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { ScrollArea } from './ui/scroll-area'
 import { Separator } from './ui/separator'
 import { Badge } from './ui/badge'
+import { StatusIndicator } from './StatusIndicator'
 
 interface SidebarProps {
   selectedChannel: string
@@ -43,14 +44,7 @@ export function Sidebar({ selectedChannel, onChannelSelect, selectedDM, onDMSele
     { id: 'emma', name: 'Emma Davis', status: 'offline', unread: 1 },
   ]
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'bg-green-500'
-      case 'away': return 'bg-yellow-500'
-      case 'offline': return 'bg-gray-400'
-      default: return 'bg-gray-400'
-    }
-  }
+
 
   const filteredChannels = channels.filter(channel =>
     channel.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -159,7 +153,11 @@ export function Sidebar({ selectedChannel, onChannelSelect, selectedDM, onDMSele
                           {dm.name.split(' ').map(n => n[0]).join('')}
                         </AvatarFallback>
                       </Avatar>
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${getStatusColor(dm.status)}`} />
+                      <StatusIndicator 
+                        status={dm.status as 'online' | 'away' | 'offline'} 
+                        size="sm" 
+                        className="absolute -bottom-0.5 -right-0.5" 
+                      />
                     </div>
                     <span className="truncate flex-1 text-left">{dm.name}</span>
                     {dm.unread > 0 && (
@@ -215,7 +213,11 @@ export function Sidebar({ selectedChannel, onChannelSelect, selectedDM, onDMSele
                  user?.email?.split('@')[0]?.slice(0, 2).toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+            <StatusIndicator 
+              status="online" 
+              size="md" 
+              className="absolute -bottom-0.5 -right-0.5 border-2" 
+            />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">

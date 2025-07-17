@@ -340,7 +340,7 @@ export function ChatArea({ channelId, dmId, channelName, dmName }: ChatAreaProps
   return (
     <div className="flex-1 flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200">
+      <div className="px-4 md:px-6 py-4 border-b border-gray-200">
         <div className="flex items-center">
           {channelId ? (
             <Hash className="w-5 h-5 mr-2 text-gray-600" />
@@ -365,7 +365,7 @@ export function ChatArea({ channelId, dmId, channelName, dmName }: ChatAreaProps
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 px-6">
+      <ScrollArea className="flex-1 px-4 md:px-6">
         <div className="py-4 space-y-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-center">
@@ -421,10 +421,10 @@ export function ChatArea({ channelId, dmId, channelName, dmName }: ChatAreaProps
                       </span>
                     </div>
                     
-                    <div className={`px-4 py-2 rounded-lg ${
+                    <div className={`px-4 py-2 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md ${
                       msg.isOwn 
-                        ? 'bg-indigo-500 text-white' 
-                        : 'bg-gray-100 text-gray-900'
+                        ? 'bg-indigo-500 text-white rounded-br-md' 
+                        : 'bg-gray-100 text-gray-900 rounded-bl-md'
                     }`}>
                       {msg.content && (
                         <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -507,7 +507,7 @@ export function ChatArea({ channelId, dmId, channelName, dmName }: ChatAreaProps
       </ScrollArea>
 
       {/* Message Input */}
-      <div className="px-6 py-4 border-t border-gray-200">
+      <div className="px-4 md:px-6 py-4 border-t border-gray-200">
         {/* File Attachments Preview */}
         {attachments.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
