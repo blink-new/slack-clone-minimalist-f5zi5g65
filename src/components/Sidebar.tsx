@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Hash, MessageCircle, Plus, Search, Settings, ChevronDown, Users, Bell } from 'lucide-react'
+import { blink } from '../blink/client'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
@@ -18,6 +19,14 @@ export function Sidebar({ selectedChannel, onChannelSelect, selectedDM, onDMSele
   const [searchQuery, setSearchQuery] = useState('')
   const [channelsExpanded, setChannelsExpanded] = useState(true)
   const [dmsExpanded, setDmsExpanded] = useState(true)
+  const [user, setUser] = useState<any>(null)
+
+  useEffect(() => {
+    const unsubscribe = blink.auth.onAuthStateChanged((state) => {
+      setUser(state.user)
+    })
+    return unsubscribe
+  }, [])
 
   const channels = [
     { id: 'general', name: 'general', unread: 0 },
@@ -200,15 +209,18 @@ export function Sidebar({ selectedChannel, onChannelSelect, selectedDM, onDMSele
         <div className="flex items-center space-x-3">
           <div className="relative">
             <Avatar className="w-8 h-8">
-              <AvatarImage src="" />
+              <AvatarImage src={user?.avatar || ""} />
               <AvatarFallback className="bg-indigo-500 text-white text-sm">
-                YN
+                {user?.displayName?.split(' ').map((n: string) => n[0]).join('') || 
+                 user?.email?.split('@')[0]?.slice(0, 2).toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">Your Name</p>
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {user?.displayName || user?.email?.split('@')[0] || 'User'}
+            </p>
             <p className="text-xs text-gray-500">Online</p>
           </div>
         </div>

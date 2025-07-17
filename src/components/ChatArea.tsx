@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, Smile, Hash, AtSign } from 'lucide-react'
+import { Send, Paperclip, Smile, Hash, AtSign, MessageCircle } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { ScrollArea } from './ui/scroll-area'
+import { blink } from '../blink/client'
+import type { RealtimeChannel } from '@blinkdotnew/sdk'
 
 interface Message {
   id: string
@@ -25,35 +27,11 @@ interface ChatAreaProps {
 
 export function ChatArea({ channelId, dmId, channelName, dmName }: ChatAreaProps) {
   const [message, setMessage] = useState('')
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: 'Hey everyone! Welcome to the team workspace 👋',
-      user: { name: 'John Doe', avatar: '' },
-      timestamp: new Date(Date.now() - 3600000),
-    },
-    {
-      id: '2',
-      content: 'Thanks for setting this up! Looking forward to collaborating here.',
-      user: { name: 'Sarah Wilson', avatar: '' },
-      timestamp: new Date(Date.now() - 3000000),
-    },
-    {
-      id: '3',
-      content: 'This looks great! The minimalist design is perfect for our workflow.',
-      user: { name: 'Mike Johnson', avatar: '' },
-      timestamp: new Date(Date.now() - 1800000),
-    },
-    {
-      id: '4',
-      content: 'Agreed! Clean and simple is the way to go. Ready to get started!',
-      user: { name: 'Your Name', avatar: '' },
-      timestamp: new Date(Date.now() - 900000),
-      isOwn: true,
-    }
-  ])
-  
+  const [messages, setMessages] = useState<Message[]>([])
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -63,19 +41,129 @@ export function ChatArea({ channelId, dmId, channelName, dmName }: ChatAreaProps
     scrollToBottom()
   }, [messages])
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return
+  // Get user authentication state
+  useEffect(() => {
+    const unsubscribe = blink.auth.onAuthStateChanged((state) => {
+      setUser(state.user)
+      setLoading(state.isLoading)
+    })
+    return unsubscribe
+  }, [])
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content: message,
-      user: { name: 'Your Name', avatar: '' },
-      timestamp: new Date(),
-      isOwn: true,
+  // Set up real-time messaging
+  useEffect(() => {
+    if (!user?.id || (!channelId && !dmId)) return
+
+    let channel: RealtimeChannel | null = null
+    
+    const setupRealtime = async () => {
+      const roomId = channelId ? `channel-${channelId}` : `dm-${[user.id, dmId].sort().join('-')}`
+      channel = blink.realtime.channel(roomId)
+      channelRef.current = channel
+      
+      await channel.subscribe({
+        userId: user.id,
+        metadata: { 
+          displayName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+          avatar: user.avatar || ''
+        }
+      })
+      
+      // Listen for new messages
+      channel.onMessage((realtimeMessage) => {
+        if (realtimeMessage.type === 'chat') {
+          const newMessage: Message = {
+            id: realtimeMessage.id,
+            content: realtimeMessage.data.content,
+            user: {
+              name: realtimeMessage.metadata?.displayName || 'Anonymous',
+              avatar: realtimeMessage.metadata?.avatar || ''
+            },
+            timestamp: new Date(realtimeMessage.timestamp),
+            isOwn: realtimeMessage.userId === user.id
+          }
+          
+          setMessages(prev => {
+            // Avoid duplicates
+            if (prev.some(msg => msg.id === newMessage.id)) return prev
+            return [...prev, newMessage]
+          })
+        }
+      })
+      
+      // Load recent messages
+      try {
+        const recentMessages = await channel.getMessages({ limit: 50 })
+        const formattedMessages: Message[] = recentMessages.map(msg => ({
+          id: msg.id,
+          content: msg.data.content,
+          user: {
+            name: msg.metadata?.displayName || 'Anonymous',
+            avatar: msg.metadata?.avatar || ''
+          },
+          timestamp: new Date(msg.timestamp),
+          isOwn: msg.userId === user.id
+        }))
+        setMessages(formattedMessages)
+      } catch (error) {
+        console.error('Failed to load messages:', error)
+        // Set some default messages if loading fails
+        setMessages([
+          {
+            id: 'welcome-1',
+            content: 'Welcome to the team workspace! 👋',
+            user: { name: 'System', avatar: '' },
+            timestamp: new Date(Date.now() - 3600000),
+          }
+        ])
+      }
     }
+    
+    setupRealtime().catch(console.error)
+    
+    return () => {
+      channel?.unsubscribe()
+      channelRef.current = null
+    }
+  }, [user?.id, user?.displayName, user?.email, user?.avatar, channelId, dmId])
 
-    setMessages(prev => [...prev, newMessage])
-    setMessage('')
+  // Clear messages when switching channels/DMs
+  useEffect(() => {
+    setMessages([])
+  }, [channelId, dmId])
+
+  const handleSendMessage = async () => {
+    if (!message.trim() || !user?.id || !channelRef.current) return
+
+    try {
+      await channelRef.current.publish('chat', {
+        content: message,
+        timestamp: Date.now()
+      }, {
+        userId: user.id,
+        metadata: { 
+          displayName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+          avatar: user.avatar || ''
+        }
+      })
+      
+      setMessage('')
+    } catch (error) {
+      console.error('Failed to send message:', error)
+      // Fallback: add message locally if real-time fails
+      const fallbackMessage: Message = {
+        id: Date.now().toString(),
+        content: message,
+        user: { 
+          name: user.displayName || user.email?.split('@')[0] || 'You',
+          avatar: user.avatar || ''
+        },
+        timestamp: new Date(),
+        isOwn: true,
+      }
+      setMessages(prev => [...prev, fallbackMessage])
+      setMessage('')
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -112,6 +200,17 @@ export function ChatArea({ channelId, dmId, channelName, dmName }: ChatAreaProps
 
   const currentTitle = channelId ? `#${channelName || channelId}` : dmName || dmId
 
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading messages...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex-1 flex flex-col h-full bg-white">
       {/* Header */}
@@ -142,7 +241,27 @@ export function ChatArea({ channelId, dmId, channelName, dmName }: ChatAreaProps
       {/* Messages */}
       <ScrollArea className="flex-1 px-6">
         <div className="py-4 space-y-4">
-          {messages.map((msg, index) => {
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-12 text-center">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                {channelId ? (
+                  <Hash className="w-8 h-8 text-gray-400" />
+                ) : (
+                  <MessageCircle className="w-8 h-8 text-gray-400" />
+                )}
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {channelId ? `Welcome to #${channelName || channelId}` : `Start a conversation with ${dmName || dmId}`}
+              </h3>
+              <p className="text-gray-500 max-w-md">
+                {channelId 
+                  ? "This is the beginning of the channel. Send a message to get the conversation started!"
+                  : "This is the beginning of your direct message history. Say hello!"
+                }
+              </p>
+            </div>
+          ) : (
+            messages.map((msg, index) => {
             const showDate = index === 0 || 
               formatDate(msg.timestamp) !== formatDate(messages[index - 1].timestamp)
             
@@ -196,7 +315,8 @@ export function ChatArea({ channelId, dmId, channelName, dmName }: ChatAreaProps
                 </div>
               </div>
             )
-          })}
+          })
+          )}
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
